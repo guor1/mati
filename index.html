@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>九九乘法限时挑战</title>
+<style>
+  :root { --green:#2ecc71; --red:#e74c3c; --blue:#3498db; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; height:100%; font-family:-apple-system,"PingFang SC",sans-serif; background:#fdf6e3; color:#333; }
+  body { display:flex; align-items:center; justify-content:center; user-select:none; }
+  .screen { display:none; width:100%; max-width:640px; padding:24px; text-align:center; }
+  .screen.active { display:block; }
+  h1 { font-size:2rem; margin:0 0 24px; }
+  .segments { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:24px 0; }
+  .seg { font-size:2rem; padding:20px 0; border-radius:16px; background:#eee; border:3px solid transparent; cursor:pointer; }
+  .seg.on { background:var(--blue); color:#fff; border-color:#2c80b4; }
+  .btn { font-size:1.6rem; padding:18px 40px; border:none; border-radius:16px; background:var(--green); color:#fff; cursor:pointer; margin:8px; }
+  .btn:disabled { background:#bbb; }
+  .hud { display:flex; justify-content:space-between; font-size:1.5rem; margin-bottom:16px; }
+  .question { font-size:3.2rem; font-weight:bold; margin:24px 0 8px; border-radius:16px; }
+  .input-display { font-size:2.4rem; min-height:3rem; color:var(--blue); letter-spacing:4px; }
+  .correct-answer { font-size:1.6rem; color:var(--red); min-height:2rem; }
+  .pad { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:16px; }
+  .key { font-size:2rem; padding:22px 0; border-radius:16px; background:#fff; border:2px solid #ddd; cursor:pointer; }
+  .flash-correct { animation:fc .4s; }
+  .flash-wrong { animation:fw .4s; }
+  @keyframes fc { 0%,100%{background:transparent;} 50%{background:var(--green);color:#fff;} }
+  @keyframes fw { 0%,100%{background:transparent;} 50%{background:var(--red);color:#fff;} }
+  .final-score { font-size:3rem; font-weight:bold; margin:16px 0; }
+  .best { font-size:1.4rem; color:#888; margin-bottom:16px; }
+</style>
+</head>
+<body>
+
+<div id="start" class="screen active">
+  <h1>九九乘法限时挑战</h1>
+  <p>选择要练习的乘法段位</p>
+  <div id="segments" class="segments"></div>
+  <button id="start-btn" class="btn">开始 (60秒)</button>
+</div>
+
+<div id="game" class="screen">
+  <div class="hud">
+    <span>⏱ <span id="time">60</span></span>
+    <span>得分 <span id="score">0</span></span>
+  </div>
+  <div id="question" class="question"></div>
+  <div id="input-display" class="input-display"></div>
+  <div id="correct-answer" class="correct-answer"></div>
+  <div id="pad" class="pad"></div>
+</div>
+
+<div id="end" class="screen">
+  <h1>时间到!</h1>
+  <div class="final-score">答对 <span id="final">0</span> 题</div>
+  <div id="best" class="best"></div>
+  <button id="again-btn" class="btn">再来一局</button>
+  <button id="back-btn" class="btn" style="background:#95a5a6;">返回设置</button>
+</div>
+
+<script src="game.js"></script>
+<script>
+(function () {
+  'use strict';
+  var DURATION = 60;
+  var BEST_KEY = 'mati_best_score';
+
+  var state = {
+    segments: { 2:true,3:true,4:true,5:true,6:true,7:true,8:true,9:true },
+    time: DURATION, score: 0, question: null, input: '', timer: null, locked: false
+  };
+
+  function byId(id) { return document.getElementById(id); }
+  var el = {
+    screens: { start: byId('start'), game: byId('game'), end: byId('end') },
+    segments: byId('segments'), startBtn: byId('start-btn'),
+    time: byId('time'), score: byId('score'), question: byId('question'),
+    inputDisplay: byId('input-display'), correctAnswer: byId('correct-answer'),
+    pad: byId('pad'), final: byId('final'), best: byId('best'),
+    againBtn: byId('again-btn'), backBtn: byId('back-btn')
+  };
+
+  function show(name) {
+    Object.keys(el.screens).forEach(function (k) {
+      el.screens[k].classList.toggle('active', k === name);
+    });
+  }
+
+  function selectedSegments() {
+    return Object.keys(state.segments)
+      .filter(function (k) { return state.segments[k]; })
+      .map(Number);
+  }
+
+  function renderSegments() {
+    el.segments.innerHTML = '';
+    [2,3,4,5,6,7,8,9].forEach(function (n) {
+      var d = document.createElement('div');
+      d.className = 'seg' + (state.segments[n] ? ' on' : '');
+      d.textContent = n;
+      d.addEventListener('click', function () {
+        state.segments[n] = !state.segments[n];
+        renderSegments();
+        el.startBtn.disabled = selectedSegments().length === 0;
+      });
+      el.segments.appendChild(d);
+    });
+  }
+
+  function renderPad() {
+    el.pad.innerHTML = '';
+    ['1','2','3','4','5','6','7','8','9','删除','0','确定'].forEach(function (k) {
+      var b = document.createElement('div');
+      b.className = 'key';
+      b.textContent = k;
+      b.addEventListener('click', function () { onKey(k); });
+      el.pad.appendChild(b);
+    });
+  }
+
+  function onKey(k) {
+    if (state.locked) return;
+    if (k === '删除') {
+      state.input = state.input.slice(0, -1);
+    } else if (k === '确定') {
+      submit();
+      return;
+    } else if (state.input.length < 3) {
+      state.input += k;
+    }
+    el.inputDisplay.textContent = state.input;
+  }
+
+  function flash(cls) {
+    el.question.classList.remove('flash-correct', 'flash-wrong');
+    void el.question.offsetWidth;
+    el.question.classList.add(cls);
+  }
+
+  function nextQuestion() {
+    state.question = Game.generateQuestion(selectedSegments(), state.question);
+    state.input = '';
+    el.question.textContent = Game.formatQuestion(state.question);
+    el.inputDisplay.textContent = '';
+  }
+
+  function submit() {
+    if (state.input === '') return;
+    if (Game.checkAnswer(state.question, state.input)) {
+      state.score++;
+      el.score.textContent = state.score;
+      flash('flash-correct');
+      nextQuestion();
+    } else {
+      state.locked = true;
+      el.correctAnswer.textContent = '正确答案:' + state.question.answer;
+      flash('flash-wrong');
+      setTimeout(function () {
+        el.correctAnswer.textContent = '';
+        state.locked = false;
+        nextQuestion();
+      }, 1000);
+    }
+  }
+
+  function tick() {
+    state.time--;
+    el.time.textContent = state.time;
+    if (state.time <= 0) endGame();
+  }
+
+  function startGame() {
+    state.time = DURATION; state.score = 0; state.input = '';
+    state.locked = false; state.question = null;
+    el.time.textContent = state.time;
+    el.score.textContent = 0;
+    el.correctAnswer.textContent = '';
+    nextQuestion();
+    show('game');
+    state.timer = setInterval(tick, 1000);
+  }
+
+  function endGame() {
+    clearInterval(state.timer);
+    var best = Number(localStorage.getItem(BEST_KEY) || 0);
+    if (state.score > best) {
+      best = state.score;
+      localStorage.setItem(BEST_KEY, String(best));
+    }
+    el.final.textContent = state.score;
+    el.best.textContent = '历史最高:' + best + ' 题';
+    show('end');
+  }
+
+  el.startBtn.addEventListener('click', function () {
+    if (selectedSegments().length > 0) startGame();
+  });
+  el.againBtn.addEventListener('click', startGame);
+  el.backBtn.addEventListener('click', function () { show('start'); });
+
+  renderSegments();
+  renderPad();
+})();
+</script>
+</body>
+</html>
