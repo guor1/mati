@@ -4,7 +4,7 @@
   // 返回 [min, max] 闭区间内的整数;rng 为可注入随机源(默认 Math.random)
   function randomInt(min, max, rng) {
     var r = (rng || Math.random)();
-    return min + Math.floor(r * (max - min + 1));
+    return Math.min(max, min + Math.floor(r * (max - min + 1)));
   }
 
   // 生成一题 {a, b, answer}:a 取自 segments(整数数组),b 取自 1..9,

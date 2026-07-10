@@ -37,6 +37,9 @@ test('generateQuestion: 避免与上一题完全相同', () => {
   const rng = seq([0, 0, 0, 0.5]);
   const q = Game.generateQuestion([6, 7, 8], prev, rng);
   assert.ok(!(q.a === 6 && q.b === 1), '应与上一题不同');
+  assert.strictEqual(q.a, 6);
+  assert.strictEqual(q.b, 5);
+  assert.strictEqual(q.answer, 30);
 });
 
 test('generateQuestion: 段位为空时抛错', () => {
