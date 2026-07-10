@@ -1,0 +1,8 @@
+{
+  "name": "mati",
+  "version": "1.0.0",
+  "description": "九九乘法限时挑战",
+  "scripts": {
+    "test": "node --test"
+  }
+}
