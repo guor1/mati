@@ -157,7 +157,7 @@
       state.locked = true;
       el.correctAnswer.textContent = '正确答案:' + state.question.answer;
       flash('flash-wrong');
-      setTimeout(function () {
+      state.wrongTimer = setTimeout(function () {
         el.correctAnswer.textContent = '';
         state.locked = false;
         nextQuestion();
@@ -172,6 +172,8 @@
   }
 
   function startGame() {
+    clearInterval(state.timer);
+    clearTimeout(state.wrongTimer);
     state.time = DURATION; state.score = 0; state.input = '';
     state.locked = false; state.question = null;
     el.time.textContent = state.time;
@@ -184,6 +186,7 @@
 
   function endGame() {
     clearInterval(state.timer);
+    clearTimeout(state.wrongTimer);
     var best = Number(localStorage.getItem(BEST_KEY) || 0);
     if (state.score > best) {
       best = state.score;
@@ -198,7 +201,12 @@
     if (selectedSegments().length > 0) startGame();
   });
   el.againBtn.addEventListener('click', startGame);
-  el.backBtn.addEventListener('click', function () { show('start'); });
+  el.backBtn.addEventListener('click', function () {
+    clearInterval(state.timer);
+    clearTimeout(state.wrongTimer);
+    state.locked = false;
+    show('start');
+  });
 
   renderSegments();
   renderPad();
